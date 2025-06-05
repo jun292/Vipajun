@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TopUp Game & E-Wallet</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <script>
+    let allGames = [];
+    let ewalletProducts = [];
+
+    async function fetchFromProxy(type, extraParams = {}) {
+      const body = new URLSearchParams({ type, ...extraParams });
+      const response = await fetch("/api/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      });
+      return await response.json();
+    }
+
+    async function fetchGames() {
+      const data = await fetchFromProxy("game");
+      allGames = data.data || [];
+      populateCategories();
+      renderGames(allGames);
+    }
+
+    async function fetchEwalletProducts() {
+      const data = await fetchFromProxy("pricelist", { category: "E-MONEY" });
+      ewalletProducts = data.data || [];
+      renderEwalletProducts();
+    }
+
+    function populateCategories() {
+      const categorySet = new Set(allGames.map((g) => g.kategori));
+      const select = document.getElementById("category-filter");
+      select.innerHTML = '<option value="all">Semua Kategori</option>';
+      categorySet.forEach((cat) => {
+        const option = document.createElement("option");
+        option.value = cat;
+        option.textContent = cat;
+        select.appendChild(option);
+      });
+    }
+
+    function renderGames(games) {
+      const container = document.getElementById("game-list");
+      container.innerHTML = "";
+      games.forEach((game) => {
+        const div = document.createElement("div");
+        div.className = "bg-white rounded shadow p-4 m-2 w-60 cursor-pointer";
+        div.onclick = () => showGameDetail(game);
+        div.innerHTML = \`
+          <img src="\${game.icon}" alt="\${game.name}" class="w-full h-32 object-contain mb-2">
+          <h2 class="text-lg font-semibold text-center">\${game.name}</h2>\`;
+        container.appendChild(div);
+      });
+    }
+
+    function renderEwalletProducts() {
+      const container = document.getElementById("ewallet-list");
+      container.innerHTML = "";
+      ewalletProducts.forEach((product) => {
+        const div = document.createElement("div");
+        div.className = "bg-white rounded shadow p-4 m-2 w-60";
+        div.innerHTML = \`
+          <h2 class="text-lg font-semibold text-center">\${product.buyer_sku_code}</h2>
+          <p class="text-sm text-center">\${product.product_name}</p>
+          <p class="text-sm text-center text-green-600 font-bold">Rp \${product.price}</p>
+          <button onclick="orderEwallet('\${product.buyer_sku_code}')" class="mt-2 bg-purple-600 text-white w-full rounded p-1">Beli</button>\`;
+        container.appendChild(div);
+      });
+    }
+
+    function filterByCategory() {
+      const selected = document.getElementById("category-filter").value;
+      const filtered = selected === "all" ? allGames : allGames.filter((g) => g.kategori === selected);
+      renderGames(filtered);
+    }
+
+    function showGameDetail(game) {
+      const modal = document.getElementById("game-modal");
+      const detail = document.getElementById("game-detail");
+      detail.innerHTML = \`
+        <img src="\${game.icon}" class="w-32 h-32 mx-auto mb-4">
+        <h2 class="text-xl font-bold text-center">\${game.name}</h2>
+        <p class="text-center text-sm text-gray-600 mt-2">Kategori: \${game.kategori}</p>\`;
+      modal.classList.remove("hidden");
+    }
+
+    function closeModal() {
+      document.getElementById("game-modal").classList.add("hidden");
+    }
+
+    async function orderEwallet(sku) {
+      const tujuan = prompt("Masukkan nomor tujuan:");
+      if (!tujuan) return;
+      const response = await fetch("/api/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          type: "topup",
+          kode_produk: sku,
+          tujuan: tujuan,
+        }),
+      });
+      const data = await response.json();
+      alert(data.message || "Transaksi berhasil!");
+    }
+
+    window.onload = () => {
+      fetchGames();
+      fetchEwalletProducts();
+    };
+  </script>
+</head>
+<body class="bg-gray-100">
+  <div class="p-4 text-center bg-purple-600 text-white font-bold text-xl">
+    VIPayment Game & E-Wallet
+  </div>
+
+  <div class="p-4">
+    <h2 class="text-xl font-semibold mb-2">Game</h2>
+    <label for="category-filter" class="block mb-2 font-semibold">Filter berdasarkan Kategori:</label>
+    <select id="category-filter" onchange="filterByCategory()" class="p-2 rounded border w-full max-w-sm">
+      <option value="all">Memuat kategori...</option>
+    </select>
+  </div>
+
+  <div class="flex justify-center flex-wrap mt-4" id="game-list">
+    <p class="text-gray-600">Memuat data game...</p>
+  </div>
+
+  <div class="p-4 mt-10">
+    <h2 class="text-xl font-semibold mb-4">Top Up E-Wallet & Bank</h2>
+    <div class="flex flex-wrap justify-center" id="ewallet-list">
+      <p class="text-gray-600">Memuat data e-wallet...</p>
+    </div>
+  </div>
+
+  <div id="game-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-80 relative">
+      <button onclick="closeModal()" class="absolute top-2 right-2 text-gray-600 hover:text-black">&times;</button>
+      <div id="game-detail"></div>
+    </div>
+  </div>
+</body>
+</html>
